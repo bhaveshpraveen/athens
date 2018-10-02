@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	datadog "github.com/DataDog/opencensus-go-exporter-datadog"
 	"github.com/gobuffalo/buffalo"
 	"github.com/gomods/athens/pkg/errors"
 	"go.opencensus.io/exporter/jaeger"
@@ -50,6 +51,40 @@ func RegisterTraceExporter(URL, service, ENV string) (*(jaeger.Exporter), error)
 	}
 
 	return je, nil
+}
+
+// RegisterDatadogTracerExporter returns a datadog exporter.
+// How to use this in app.go file
+func RegisterDatadogTraceExporter(URL, service, ENV string) (*(datadog.Exporter), error) {
+	const op errors.Op = "RegisterTracer"
+
+	if URL == "" {
+		return nil, errors.E(op, "Exporter URL is empty. Traces won't be exported")
+	}
+
+	dd, err := datadog.NewExporter(
+		datadog.Options{
+			Service:   service,
+			TraceAddr: URL,
+		})
+	if err != nil {
+		return nil, errors.E(op, err)
+	}
+	// Todo
+	// This line must be run in app.go
+	// defer dd.Stop()
+
+	// Register Trace Exporter
+	trace.RegisterExporter(dd)
+
+	// For demoing purposes, always sample. In a production application, you should
+	// configure this to a trace.ProbabilitySampler set at the desired
+	// probability.
+	if ENV == "development" {
+		trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
+	}
+
+	return dd, nil
 }
 
 // Tracer is a middleware that starts a span from the top of a buffalo context
